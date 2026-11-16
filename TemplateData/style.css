@@ -1,0 +1,398 @@
+/* PixRow web page. Two layouts:
+   phone: the game fills the visible screen inside the safe areas.
+   framed (computer, tablet, phone on its side): a portrait 9:19.5 area, centred.
+   index.html sets html.is-phone or html.is-framed and the --stage-* sizes. */
+
+@font-face {
+  font-family: "Lilita One";
+  src: url("fonts/LilitaOne-Regular.ttf") format("truetype");
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Varela Round";
+  src: url("fonts/VarelaRound-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+
+:root {
+  color-scheme: dark;
+
+  /* taken from the night world */
+  --night-top: #2f2a69;
+  --night-mid: #393a7c;
+  --night-low: #1d2b5c;
+  --night-glow: #4d4a9a;
+
+  /* page around the game, a deeper shade of the same night */
+  --backdrop: #0e0f2b;
+  --backdrop-edge: #08091c;
+  --backdrop-glow: #1b1c4a;
+
+  --ink: #f7f4ff;
+  --ink-soft: #c9c6ec;
+  --ink-mute: #8f8cbf;
+  --amber: #ffcb52;
+  --amber-deep: #f5a524;
+  --track: rgba(233, 230, 255, 0.14);
+  --focus: #ffd770;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+  --font-display: "Lilita One", "Varela Round", system-ui, sans-serif;
+  --font-text: "Varela Round", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --stage-w: 100vw;
+  --stage-h: 100vh;
+  --radius: 0px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--backdrop);
+  color: var(--ink);
+  font-family: var(--font-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+::selection {
+  background: var(--amber);
+  color: #1a1640;
+}
+
+/* ---------- page ---------- */
+
+#page {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+html.is-framed #page {
+  background:
+    radial-gradient(60% 55% at 50% 42%, var(--backdrop-glow) 0%, rgba(27, 28, 74, 0) 70%),
+    linear-gradient(180deg, var(--backdrop) 0%, var(--backdrop-edge) 100%);
+}
+
+html.is-phone #page {
+  /* the bands behind notch and home bar take the game's own top and bottom colour */
+  background: linear-gradient(180deg, var(--night-top) 0%, var(--night-low) 100%);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* ---------- the game area ---------- */
+
+#stage {
+  position: relative;
+  flex: none;
+  width: var(--stage-w);
+  height: var(--stage-h);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--night-top) 0%, var(--night-mid) 50%, var(--night-low) 100%);
+  isolation: isolate;
+}
+
+html.is-framed #stage {
+  box-shadow:
+    0 0 0 1px rgba(201, 198, 236, 0.07),
+    0 24px 60px -12px rgba(3, 3, 16, 0.75),
+    0 8px 24px -8px rgba(3, 3, 16, 0.5);
+}
+
+#unity-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  background: transparent;
+}
+
+/* ---------- loading screen ---------- */
+
+#loader {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10%;
+  text-align: center;
+  background:
+    radial-gradient(85% 46% at 50% 44%, rgba(77, 74, 154, 0.9) 0%, rgba(77, 74, 154, 0.45) 40%, rgba(77, 74, 154, 0.12) 70%, rgba(77, 74, 154, 0) 100%),
+    linear-gradient(180deg, var(--night-top) 0%, var(--night-mid) 50%, var(--night-low) 100%);
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 420ms var(--ease-out);
+}
+
+#loader.is-done {
+  opacity: 0;
+}
+
+#loader.is-gone {
+  display: none;
+}
+
+.wordmark {
+  margin: 0 0 0.62em;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: calc(var(--stage-w) * 0.17);
+  line-height: 1;
+  letter-spacing: 0.005em;
+  color: var(--ink);
+  text-shadow:
+    0 0.04em 0.1em rgba(12, 10, 44, 0.55),
+    0 0.01em 0 rgba(12, 10, 44, 0.35);
+}
+
+.bar {
+  position: relative;
+  width: min(46%, 220px);
+  height: 5px;
+  border-radius: 99px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.bar-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--amber-deep) 0%, var(--amber) 100%);
+  transform-origin: 0 50%;
+  transform: scaleX(0.02);
+  transition: transform 260ms var(--ease-out);
+}
+
+.status {
+  margin: 16px 0 0;
+  min-height: 1.4em;
+  font-size: 13px;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+}
+
+/* error, shown in place of the bar */
+
+.problem {
+  display: none;
+  max-width: 30ch;
+  text-wrap: balance;
+  pointer-events: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+#loader.is-error .bar,
+#loader.is-error .status {
+  display: none;
+}
+
+#loader.is-error .problem {
+  display: block;
+}
+
+.problem-title {
+  margin: 0 0 8px;
+  font-size: 17px;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.problem-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.problem-retry {
+  margin-top: 20px;
+  padding: 10px 20px;
+  border: 1px solid rgba(233, 230, 255, 0.28);
+  border-radius: 99px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 160ms ease, transform 160ms var(--ease-out);
+}
+
+.problem-retry:hover {
+  background: rgba(233, 230, 255, 0.08);
+}
+
+.problem-retry:active {
+  transform: scale(0.97);
+}
+
+.problem-retry[hidden] {
+  display: none;
+}
+
+/* ---------- line under the game (framed layout only) ---------- */
+
+#caption {
+  display: none;
+  width: var(--stage-w);
+  height: 44px;
+  margin-top: 14px;
+  padding: 0 4px 0 6px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+html.is-framed.has-caption #caption {
+  display: flex;
+}
+
+/* phone on its side: the game stays upright, a short note sits beside it */
+.turn-note {
+  display: none;
+  max-width: 16ch;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  text-wrap: balance;
+}
+
+html.is-phone-side #page {
+  flex-direction: row;
+  gap: 28px;
+}
+
+html.is-phone-side .turn-note {
+  display: block;
+}
+
+.caption-text {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.caption-name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.caption-note {
+  font-size: 13px;
+  line-height: 1;
+  color: var(--ink-mute);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#fullscreen {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-mute);
+  cursor: pointer;
+  transition: color 160ms ease, background-color 160ms ease, transform 160ms var(--ease-out);
+}
+
+#fullscreen:hover {
+  color: var(--ink);
+  background: rgba(233, 230, 255, 0.07);
+}
+
+#fullscreen:active {
+  transform: scale(0.95);
+}
+
+#fullscreen[hidden] {
+  display: none;
+}
+
+#fullscreen svg {
+  width: 18px;
+  height: 18px;
+}
+
+#fullscreen .icon-exit,
+html.is-fullscreen #fullscreen .icon-enter {
+  display: none;
+}
+
+html.is-fullscreen #fullscreen .icon-exit {
+  display: block;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+#unity-canvas:focus-visible {
+  outline: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar-fill {
+    transition: none;
+  }
+  #loader {
+    transition-duration: 200ms;
+  }
+}

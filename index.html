@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#2f2a69">
+    <meta name="color-scheme" content="dark">
+    <meta name="description" content="PixRow: tap the chains, clear the picture. A calm daily pixel puzzle.">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>PixRow</title>
+    <link rel="icon" type="image/png" href="TemplateData/favicon.png">
+    <link rel="apple-touch-icon" href="TemplateData/touch-icon.png">
+    <link rel="preload" href="TemplateData/fonts/LilitaOne-Regular.ttf" as="font" type="font/ttf" crossorigin>
+    <link rel="stylesheet" href="TemplateData/style.css">
+  </head>
+  <body>
+    <div id="page">
+      <main id="stage">
+        <canvas id="unity-canvas" width="411" height="915" tabindex="-1" aria-label="PixRow game"></canvas>
+        <div id="loader">
+          <h1 class="wordmark">PixRow</h1>
+          <div class="bar" role="progressbar" aria-label="Loading PixRow" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="bar-fill"></div>
+          </div>
+          <p class="status" aria-hidden="true">Loading</p>
+          <div class="problem" role="alert">
+            <p class="problem-title"></p>
+            <p class="problem-text"></p>
+            <button class="problem-retry" type="button" hidden>Reload</button>
+          </div>
+        </div>
+      </main>
+      <footer id="caption">
+        <div class="caption-text">
+          <span class="caption-name">PixRow</span>
+          <span class="caption-note">Best played on a phone</span>
+        </div>
+        <button id="fullscreen" type="button" aria-label="Full screen" title="Full screen" hidden>
+          <svg class="icon-enter" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2.5 6.5v-4h4M11.5 2.5h4v4M15.5 11.5v4h-4M6.5 15.5h-4v-4"/>
+          </svg>
+          <svg class="icon-exit" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6.5 2.5v4h-4M15.5 6.5h-4v-4M11.5 15.5v-4h4M2.5 11.5h4v4"/>
+          </svg>
+        </button>
+      </footer>
+      <p class="turn-note">Turn your phone upright for a bigger board</p>
+    </div>
+
+    <script>
+      (function () {
+        var root = document.documentElement;
+        var page = document.getElementById("page");
+        var canvas = document.getElementById("unity-canvas");
+        var loader = document.getElementById("loader");
+        var bar = loader.querySelector(".bar");
+        var barFill = loader.querySelector(".bar-fill");
+        var statusText = loader.querySelector(".status");
+        var fsButton = document.getElementById("fullscreen");
+
+        // ---------- layout ----------
+
+        var RATIO = 9 / 19.5;
+        var ua = navigator.userAgent;
+        var isTouch = /iPhone|iPad|iPod|Android/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
+        var isPhone = isTouch && Math.min(screen.width, screen.height) < 600;
+
+        function px(value) {
+          return parseFloat(value) || 0;
+        }
+
+        function layout() {
+          var vw = window.innerWidth;
+          var vh = window.innerHeight;
+          var w, h;
+
+          if (isPhone && vh >= vw) {
+            // phone held upright: fill everything inside the safe areas
+            root.classList.add("is-phone");
+            root.classList.remove("is-framed", "has-caption", "is-phone-side");
+            var cs = getComputedStyle(page);
+            w = Math.floor(vw - px(cs.paddingLeft) - px(cs.paddingRight));
+            h = Math.floor(vh - px(cs.paddingTop) - px(cs.paddingBottom));
+            root.style.setProperty("--radius", "0px");
+          } else {
+            // computer, tablet, or a phone on its side: a portrait area, as tall as fits
+            root.classList.add("is-framed");
+            root.classList.remove("is-phone");
+            root.classList.toggle("is-phone-side", isPhone);
+            var caption = !isPhone && vh >= 480;
+            root.classList.toggle("has-caption", caption);
+            var margin = isPhone ? 0 : Math.round(Math.min(40, Math.max(16, vh * 0.04)));
+            var captionH = caption ? 58 : 0;
+            var availH = vh - margin * 2 - captionH;
+            var availW = vw - (isPhone ? 0 : 32);
+            h = Math.floor(Math.min(availH, availW / RATIO));
+            w = Math.round(h * RATIO);
+            root.style.setProperty("--radius", isPhone ? "0px" : Math.round(Math.min(24, w * 0.05)) + "px");
+          }
+
+          root.style.setProperty("--stage-w", Math.max(w, 1) + "px");
+          root.style.setProperty("--stage-h", Math.max(h, 1) + "px");
+        }
+
+        function relayout() {
+          layout();
+          // some phones report the new size a moment after rotating
+          setTimeout(layout, 250);
+        }
+
+        layout();
+        window.addEventListener("resize", layout);
+        window.addEventListener("orientationchange", relayout);
+        if (window.visualViewport) window.visualViewport.addEventListener("resize", layout);
+
+        // ---------- touch and focus ----------
+
+        // the first click or tap gives the game the keyboard; the event still reaches Unity
+        canvas.addEventListener("pointerdown", function () {
+          if (document.activeElement !== canvas) canvas.focus({ preventScroll: true });
+        });
+        canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+        // Safari ignores user-scalable=no, so stop its pinch-zoom here
+        ["gesturestart", "gesturechange", "gestureend"].forEach(function (name) {
+          document.addEventListener(name, function (e) { e.preventDefault(); }, { passive: false });
+        });
+
+        // ---------- full screen (computer only) ----------
+
+        var fsEnabled = document.fullscreenEnabled || document.webkitFullscreenEnabled;
+        if (!isTouch && fsEnabled) {
+          fsButton.hidden = false;
+          fsButton.addEventListener("click", function () {
+            var current = document.fullscreenElement || document.webkitFullscreenElement;
+            if (current) {
+              (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+            } else {
+              var req = root.requestFullscreen || root.webkitRequestFullscreen;
+              var result = req.call(root);
+              if (result && result.catch) result.catch(function () {});
+            }
+            canvas.focus({ preventScroll: true });
+          });
+          ["fullscreenchange", "webkitfullscreenchange"].forEach(function (name) {
+            document.addEventListener(name, function () {
+              var on = !!(document.fullscreenElement || document.webkitFullscreenElement);
+              root.classList.toggle("is-fullscreen", on);
+              fsButton.setAttribute("aria-label", on ? "Leave full screen" : "Full screen");
+              fsButton.title = on ? "Leave full screen" : "Full screen";
+              relayout();
+            });
+          });
+        }
+
+        // ---------- loading screen ----------
+
+        var shown = 0;
+        var finished = false;
+
+        function setProgress(p) {
+          p = Math.max(0, Math.min(1, p || 0));
+          if (p < shown) return;
+          shown = p;
+          barFill.style.transform = "scaleX(" + Math.max(0.02, p) + ")";
+          bar.setAttribute("aria-valuenow", String(Math.round(p * 100)));
+          // Unity reports downloads up to 0.9, the rest is start-up
+          statusText.textContent = p < 0.9 ? "Loading" : "Starting";
+        }
+
+        function hideLoader() {
+          if (finished) return;
+          finished = true;
+          setProgress(1);
+          loader.classList.add("is-done");
+          var gone = function () {
+            if (!loader.classList.contains("is-error")) loader.classList.add("is-gone");
+          };
+          loader.addEventListener("transitionend", gone, { once: true });
+          setTimeout(gone, 600);
+        }
+
+        var problems = {
+          browser: {
+            title: "This browser can't run PixRow",
+            text: "PixRow needs WebGL 2. Try the latest Chrome, Safari, Firefox or Edge.",
+            retry: false
+          },
+          load: {
+            title: "PixRow didn't load",
+            text: "Check your connection, then reload the page.",
+            retry: true
+          },
+          crash: {
+            title: "Something went wrong",
+            text: "Reload the page to play again.",
+            retry: true
+          }
+        };
+
+        function showProblem(kind) {
+          var info = problems[kind] || problems.load;
+          loader.querySelector(".problem-title").textContent = info.title;
+          loader.querySelector(".problem-text").textContent = info.text;
+          var retry = loader.querySelector(".problem-retry");
+          retry.hidden = !info.retry;
+          retry.onclick = function () { location.reload(); };
+          loader.classList.remove("is-done", "is-gone");
+          loader.classList.add("is-error");
+        }
+
+        // Unity's own messages stay in the console; only real errors reach the player
+        function unityShowBanner(msg, type) {
+          if (type === "error") {
+            console.error(msg);
+            showProblem(finished ? "crash" : "load");
+          } else {
+            console.warn(msg);
+          }
+        }
+
+        function hasWebGL2() {
+          try {
+            if (!window.WebGL2RenderingContext) return false;
+            var gl = document.createElement("canvas").getContext("webgl2");
+            if (!gl) return false;
+            var lose = gl.getExtension("WEBGL_lose_context");
+            if (lose) lose.loseContext();
+            return true;
+          } catch (e) {
+            return false;
+          }
+        }
+
+        // ---------- Unity ----------
+
+        var buildUrl = "Build";
+        var loaderUrl = buildUrl + "/web-devA.loader.js";
+        var config = {
+          arguments: [],
+          dataUrl: buildUrl + "/web-devA.data.unityweb",
+          frameworkUrl: buildUrl + "/web-devA.framework.js.unityweb",
+          codeUrl: buildUrl + "/web-devA.wasm.unityweb",
+          streamingAssetsUrl: "StreamingAssets",
+          companyName: "PixRow",
+          productName: "PixRow",
+          productVersion: "0.15.1-web",
+          showBanner: unityShowBanner,
+          // replaces Unity's alert() box on a runtime error
+          errorHandler: function (message) {
+            if (String(message).indexOf("fullscreen error") !== -1) return true;
+            console.error(message);
+            showProblem(finished ? "crash" : "load");
+            return true;
+          },
+          autoSyncPersistentDataPath: true,
+          // sharp on every screen, but never more than 2x so phones keep their frame rate
+          devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2)
+        };
+
+        if (!hasWebGL2()) {
+          showProblem("browser");
+          return;
+        }
+
+        var script = document.createElement("script");
+        script.src = loaderUrl;
+        script.onerror = function () { showProblem("load"); };
+        script.onload = function () {
+          if (typeof createUnityInstance !== "function") {
+            showProblem("load");
+            return;
+          }
+          createUnityInstance(canvas, config, function (progress) {
+            setProgress(progress);
+          }).then(function () {
+            hideLoader();
+          }).catch(function (message) {
+            console.error(message);
+            showProblem(/webgl/i.test(String(message)) ? "browser" : "load");
+          });
+        };
+        document.body.appendChild(script);
+      })();
+    </script>
+  </body>
+</html>
